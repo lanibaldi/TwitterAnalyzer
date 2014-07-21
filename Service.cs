@@ -145,6 +145,7 @@ namespace TwitterAnalyzer
                     logger.InfoFormat("READ sentiment, text={0}", text);
 
                     string result = TwitterAnalyzer.ServiceHelper.BuildResult(text, logger);
+                    logger.InfoFormat("READ sentiment, result={0}", result);
                     WriteResponse(result);                    
                 }
             }
