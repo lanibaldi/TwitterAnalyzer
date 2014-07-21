@@ -3,11 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Xml;
 using MongoDB.Bson;
 using MongoDB.Driver.Builders;
 using log4net;
 using MongoDB.Driver;
 using System.Configuration;
+using AlchemyAPI;
 
 namespace TwitterAnalyzer
 {
@@ -33,14 +35,15 @@ namespace TwitterAnalyzer
                 }
                 var collection = database.GetCollection(collName);
                 if (collection != null)
-                {
-                    IList<string> urls;
-                    text = SkipHttpLinks(text, out urls);
-
+                {                    
                     var emptyspaces = new char[] {' ', '\t', '\r', '\n'};
-                    var specials = new char[] { '#', '"', '|', '@', '£', '$', '&', '(', ')', '[', ']', '=', '+', '-', '*', '^', '<', '>', '~', '°' };
-                    var alpha_separators = new char[] { '\'' };                    
-                    var punctuation = new char[] { '.', ',', ';', ':', '!', '?' };
+                    var specials = new char[]
+                        {
+                            '#', '"', '|', '@', '£', '$', '&', '(', ')', '[', ']', '=', '+', '-', '*', '^', '<', '>',
+                            '~', '°'
+                        };
+                    var alpha_separators = new char[] {'\''};
+                    var punctuation = new char[] {'.', ',', ';', ':', '!', '?'};
 
                     // deal with percentages
                     ManagePercentages(text, logger, emptyspaces, specials, wordMoods);
@@ -74,7 +77,7 @@ namespace TwitterAnalyzer
                                         BsonElement elem;
                                         if (doc.TryGetElement("mood", out elem))
                                         {
-                                            string mood = (string)elem.Value;
+                                            string mood = (string) elem.Value;
                                             if (denial)
                                             {
                                                 mood = (mood == "negative" ? "positive" : "negative");
@@ -85,9 +88,10 @@ namespace TwitterAnalyzer
                                         }
                                     }
                                 }
-                            }                            
-                        }                        
+                            }
+                        }
                     }
+                    
                 }
             }
             catch (MongoConnectionException mce)
@@ -97,6 +101,102 @@ namespace TwitterAnalyzer
             return wordMoods;
         }
 
+
+        public static string BuildResult(string text, ILog logger)
+        {
+            if (string.IsNullOrEmpty(text))
+                throw new ArgumentNullException("text");
+
+            string result = BuildContent("0", "");
+            try
+            {
+                IList<string> urls;
+                text = SkipHttpLinks(text, out urls);
+
+                bool skip;
+                string skipHttpLinks = ConfigurationManager.AppSettings["SkipHttpLinks"];
+                if (string.IsNullOrEmpty(skipHttpLinks))
+                    skip = true;
+                else
+                    skip = bool.Parse(skipHttpLinks);
+
+                if (!skip && urls.Count > 0)
+                {
+                    string url = urls.First();
+
+                    logger.DebugFormat("Creating AlchemyAPI object on: {0}", url);
+                    // Create an AlchemyAPI object.
+                    AlchemyAPI.AlchemyAPI alchemyObj = new AlchemyAPI.AlchemyAPI();
+                    // Load an API key from disk.
+                    string apiKey = Properties.Resources.api_key;
+                    alchemyObj.SetAPIKey(apiKey);
+
+                    AlchemyAPI_CombinedDataParams prms = new AlchemyAPI_CombinedDataParams();
+                    //prms.Extractions = CombinedExtract.Title | CombinedExtract.Author | CombinedExtract.Entity;
+                    prms.Extractions = CombinedExtract.Title | CombinedExtract.Author | CombinedExtract.DocSentiment;
+
+                    string xml = alchemyObj.URLGetCombinedData(url, prms);
+                    if (!string.IsNullOrEmpty(xml))
+                    {
+                        logger.InfoFormat("Got Combined Data as XML: {0}", xml);
+
+                        XmlDocument xmlDoc = new XmlDocument();
+                        xmlDoc.LoadXml(xml);
+                        // get docSentiment type
+                        XmlElement root = xmlDoc.DocumentElement;
+
+                        string errorMessage = "Error reading Sentiment type by API call.";
+                        try
+                        {
+                            XmlNode docSentimentType = root.SelectSingleNode("/results/docSentiment/type");
+                            string sentimentType = docSentimentType.InnerText;
+                            result = BuildContent("1", sentimentType);
+                        }
+                        catch(Exception ex)
+                        {
+                            errorMessage = "An error occurred: Unable to access XmlNode /results/docSentiment/type";
+                            logger.Error(errorMessage, ex);
+                        }                        
+                    }
+                }
+                else
+                {
+                    var wordMoods = ReadTextSentiment(text, logger);
+                    if (wordMoods.Any())
+                    {
+                        if (wordMoods.Values.Any(w => w == "negative"))
+                        {
+                            result = BuildContent("1", "negative");
+                        }
+                        else if (wordMoods.Values.Any(w => w == "positive"))
+                        {
+                            result = BuildContent("1", "positive");
+                        }
+                        else
+                        {
+                            result = BuildContent("1", "neutral");
+                        }
+                    }
+                }
+                logger.DebugFormat("result:{0}", result);
+            }
+            catch (Exception exc)
+            {
+                logger.ErrorFormat("exception in BuildResult: {0}", exc);
+            }
+
+            return result;
+        }
+
+        private static string BuildContent(string status, string sentiment)
+        {
+            //{"output":{"status":1,"result":"negative"}}
+            string content = "{\"output\":{" + String.Format("\"status\":{0},\"result\":\"{1}\"",
+                status, sentiment) + "}}";
+            return content;
+        }
+
+        
         private static void ManagePercentages(string text, ILog logger, char[] emptyspaces, 
                                               char[] specials, Dictionary<string, string> wordMoods)
         {            
@@ -146,48 +246,6 @@ namespace TwitterAnalyzer
                 } while (startIndex >= 0 && startIndex < text.Length);
             }
             return text;
-        }
-
-        public static string BuildResult(string text, ILog logger)
-        {
-            if (string.IsNullOrEmpty(text))
-                throw new ArgumentNullException("text");
-
-            string result = BuildContent("0", "");
-            try
-            {
-                var wordMoods = ReadTextSentiment(text, logger);
-                if (wordMoods.Any())
-                {
-                    if (wordMoods.Values.Any(w => w == "negative"))
-                    {
-                        result = BuildContent("1", "negative");
-                    }
-                    else if (wordMoods.Values.Any(w => w == "positive"))
-                    {
-                        result = BuildContent("1", "positive");
-                    }
-                    else
-                    {
-                        result = BuildContent("1", "neutral");
-                    }
-                }
-                logger.DebugFormat("result:{0}", result);
-            }
-            catch (Exception exc)
-            {
-                logger.ErrorFormat("exception in BuildResult: {0}", exc);
-            }
-
-            return result;
-        }
-
-        private static string BuildContent(string status, string sentiment)
-        {
-            //{"output":{"status":1,"result":"negative"}}
-            string content = "{\"output\":{" + String.Format("\"status\":{0},\"result\":\"{1}\"",
-                status, sentiment) + "}}";
-            return content;
         }
     }
 }
