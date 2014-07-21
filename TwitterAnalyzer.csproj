@@ -46,6 +46,7 @@
     <Reference Include="System" />
     <Reference Include="System.configuration" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Drawing" />
     <Reference Include="System.Web" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
@@ -53,7 +54,27 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AlchemyAPI\AlchemyAPI.cs" />
+    <Compile Include="AlchemyAPI\AlchemyAPI_BaseParams.cs" />
+    <Compile Include="AlchemyAPI\AlchemyAPI_CategoryParams.cs" />
+    <Compile Include="AlchemyAPI\AlchemyAPI_CombinedDataParams.cs" />
+    <Compile Include="AlchemyAPI\AlchemyAPI_ConceptParams.cs" />
+    <Compile Include="AlchemyAPI\AlchemyAPI_ConstraintQueryParams.cs" />
+    <Compile Include="AlchemyAPI\AlchemyAPI_EntityParams.cs" />
+    <Compile Include="AlchemyAPI\AlchemyAPI_ImageParams.cs" />
+    <Compile Include="AlchemyAPI\AlchemyAPI_KeywordParams.cs" />
+    <Compile Include="AlchemyAPI\AlchemyAPI_LanguageParams.cs" />
+    <Compile Include="AlchemyAPI\AlchemyAPI_RankedImageKeywords.cs" />
+    <Compile Include="AlchemyAPI\AlchemyAPI_RelationParams.cs" />
+    <Compile Include="AlchemyAPI\AlchemyAPI_TargetedSentimentParams.cs" />
+    <Compile Include="AlchemyAPI\AlchemyAPI_TaxonomyParams.cs" />
+    <Compile Include="AlchemyAPI\AlchemyAPI_TextParams.cs" />
     <Compile Include="ErrorHandler.cs" />
+    <Compile Include="Properties\Resources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
     <Compile Include="Service.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="ServiceHelper.cs" />
@@ -62,9 +83,13 @@
     <None Include="Web.config" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Test.aspx">
-      <SubType>ASPXCodeBehind</SubType>
-    </Content>
+    <Content Include="Test.aspx" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
